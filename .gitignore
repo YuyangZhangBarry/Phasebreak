@@ -1,0 +1,46 @@
+# ========================
+# Unity generated folders
+# ========================
+[Ll]ibrary/
+[Tt]emp/
+[Ll]ogs/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+UserSettings/
+
+# ========================
+# OS / Editor files
+# ========================
+.DS_Store
+.vscode/
+
+# ========================
+# Visual Studio / Rider
+# ========================
+*.csproj
+*.sln
+*.slnx
+*.user
+*.pidb
+*.booproj
+*.svd
+
+# ========================
+# Unity meta & cache
+# ========================
+*.tmp
+*.log
+
+# ========================
+# Crash reports
+# ========================
+sysinfo.txt
+mono_crash.*.json
+
+# ========================
+# Optional tooling
+# ========================
+.plastic/
+[Rr]ecordings/
+[Mm]emoryCaptures/
