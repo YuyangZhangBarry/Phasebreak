@@ -57,7 +57,7 @@ public class LevelManager : MonoBehaviour
         if (autoWireMissingUiByName)
             TryAutoWireLevelCompleteUi();
 
-        // 【新增核心逻辑】：如果是第一关，强制开启 2D 新手教程模式！
+        // Core logic: if this is Level 1, force the 2D tutorial mode.
         if (IsLevel1Scene())
         {
             EnforceLevel1TutorialState();
@@ -87,19 +87,19 @@ public class LevelManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 【新增方法】：强制第一关的玩家进入 2D 状态，并死锁切换按键
+    /// Force Level 1 player into 2D and temporarily lock dimension switching.
     /// </summary>
     private void EnforceLevel1TutorialState()
     {
-        Debug.Log("[LevelManager] 第一关教程模式启动：锁定 3D 切换，强制进入 2D 模式。");
+        Debug.Log("[LevelManager] Level 1 tutorial mode enabled: lock 3D switching and force 2D mode.");
 
-        // 1. 锁死权限：调用专用的上锁方法
+        // 1) Lock permissions: call the dedicated lock method.
         if (PlayerStatsManager.Instance != null)
         {
-            PlayerStatsManager.Instance.LockDimensionSwitch(); // 👈 换成这句！
+            PlayerStatsManager.Instance.LockDimensionSwitch();
         }
 
-        // 2. 强行把刚出生的玩家拉进 2D 维度 (Y=40)
+        // 2) Force newly spawned player into 2D dimension (Y=40).
         /*
         ModeSwitcher modeSwitcher = Object.FindFirstObjectByType<ModeSwitcher>();
         if (modeSwitcher != null)
@@ -157,9 +157,9 @@ public class LevelManager : MonoBehaviour
             enemyHealth.OnDie += () => OnEnemyDied(enemyHealth);
         }
 
-        Debug.Log($"[LevelManager] 开局共注册了 {aliveEnemies.Count} 个敌人（layer='{enemyLayerName}'）。", this);
+        Debug.Log($"[LevelManager] Registered {aliveEnemies.Count} enemies at start (layer='{enemyLayerName}').", this);
         if (aliveEnemies.Count == 0)
-            Debug.LogWarning($"[LevelManager] 注册敌人数量为 0。请检查僵尸/敌人是否在正确的 Layer='{enemyLayerName}' 上。", this);
+            Debug.LogWarning($"[LevelManager] Enemy count is 0. Check that enemies (e.g., Zombies) are on layer='{enemyLayerName}'.", this);
 
         if (aliveEnemies.Count == 0)
             ShowLevelComplete();
@@ -180,7 +180,7 @@ public class LevelManager : MonoBehaviour
         }
 
         Debug.Log(
-            $"[LevelManager] 击杀确认！enemyHealth={(enemyHealth != null ? enemyHealth.gameObject.name : "null")}, 当前剩余敌人数量: {aliveEnemies.Count}",
+            $"[LevelManager] Enemy killed: enemyHealth={(enemyHealth != null ? enemyHealth.gameObject.name : "null")}, remaining enemies: {aliveEnemies.Count}",
             this);
 
         if (aliveEnemies.Count <= 0)
@@ -191,8 +191,8 @@ public class LevelManager : MonoBehaviour
     {
         IsLevelCompleteUiVisible = true;
 
-        // 【核心修改】：删除了原来在这里的 PlayerStatsManager.Instance.UnlockDimensionSwitch();
-        // 因为你说过，要等玩家“选完卡”才解锁。所以这里只负责 UI 显示，不负责解锁能力！
+        // Core change: removed PlayerStatsManager.Instance.UnlockDimensionSwitch() from here.
+        // Unlocking must happen only after the player picks a card. This method is UI-only.
 
         Debug.Log($"[LevelManager] ShowLevelComplete called. levelCompleteText={(levelCompleteText != null ? levelCompleteText.name : "null")}, continueButton={(continueButton != null ? continueButton.name : "null")}", this);
 

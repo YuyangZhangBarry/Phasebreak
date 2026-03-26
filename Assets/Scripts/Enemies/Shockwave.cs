@@ -109,9 +109,32 @@ public class Shockwave : MonoBehaviour
         if (!heightsInitialized || !syncHeightWithPlayerDimension)
             return;
 
+        // 1) Compute the required height offset.
+        float targetY = is2DMode ? trueY2D : trueY3D;
+        float yOffset = targetY - transform.position.y; 
+
+        // 2) Teleport the physical transform itself.
         Vector3 p = transform.position;
-        p.y = is2DMode ? trueY2D : trueY3D;
+        p.y = targetY;
         transform.position = p;
+
+        // 3) "Black tech": manually teleport all particles currently flying in the air.
+        ParticleSystem ps = GetComponentInChildren<ParticleSystem>();
+        if (ps != null && ps.main.simulationSpace == ParticleSystemSimulationSpace.World)
+        {
+            // Get currently alive particles.
+            ParticleSystem.Particle[] particles = new ParticleSystem.Particle[ps.main.maxParticles];
+            int count = ps.GetParticles(particles);
+
+            // Apply the same height offset to every particle.
+            for (int i = 0; i < count; i++)
+            {
+                particles[i].position += new Vector3(0, yOffset, 0);
+            }
+
+            // Push modified particles back to the system.
+            ps.SetParticles(particles, count);
+        }
     }
 
     private void ResolveModeSwitcher()

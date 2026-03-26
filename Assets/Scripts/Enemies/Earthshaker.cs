@@ -37,7 +37,7 @@ public class Earthshaker : MonoBehaviour
     [SerializeField] private float windupDuration = 1.5f;
 
     [Header("Slam — melee")]
-    [SerializeField] private float slamRadius = 1.5f;
+    [SerializeField] private float slamRadius = 3f;
     [SerializeField] private float slamDamageToPlayer = 20f;
 
     [Header("Slam — shockwave prefab")]

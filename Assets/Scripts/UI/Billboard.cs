@@ -12,7 +12,7 @@ public class Billboard : MonoBehaviour
             else return;
         }
 
-        // 让 UI 的旋转永远和摄像机的旋转保持完全一致
+        // Keep UI rotation perfectly aligned with the camera.
         transform.rotation = camTransform.rotation;
     }
 }

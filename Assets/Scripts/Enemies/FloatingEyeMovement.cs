@@ -2,7 +2,7 @@ using UnityEngine;
 
 /// <summary>
 /// Floating eye movement with dimension-aware Y bobbing and XZ retreat.
-/// 【已升级】：兼容精英怪大招锁 (isEliteSweeping)
+/// Upgraded: compatible with elite enemy ability lock (isEliteSweeping).
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(Health))]
@@ -26,7 +26,7 @@ public class FloatingEyeMovement : MonoBehaviour
     public float bobAmplitude = 0.5f;
     public float bobFrequency = 1f;
 
-    // 【新增】精英大招状态锁
+    // Elite ability lock flag
     [HideInInspector] public bool isEliteSweeping = false;
 
     private Rigidbody _rb;
@@ -92,7 +92,7 @@ public class FloatingEyeMovement : MonoBehaviour
             Vector3 delta = playerXZ - myXZ;
             float dist = delta.magnitude;
 
-            // 【核心修改】：放大招期间，定死 XZ 轴位置，不乱跑！
+            // Core change: during elite ability, freeze XZ position (don't roam).
             if (isAttacking || isEliteSweeping)
             {
                 horizontalVelocity = Vector3.zero;
@@ -119,7 +119,7 @@ public class FloatingEyeMovement : MonoBehaviour
         newPos.y = finalY;
         _rb.MovePosition(newPos);
 
-        // 【核心修改】：放大招期间，剥夺平滑转身的权限，交给大招脚本强制 360 度旋转！
+        // Core change: during elite ability, disable smooth yaw and let the elite script force rotation.
         if (player != null && !isEliteSweeping)
         {
             Vector3 toPlayer = player.position - _rb.position;

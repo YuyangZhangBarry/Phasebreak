@@ -6,7 +6,7 @@ using UnityEngine;
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(Collider))]
-[RequireComponent(typeof(Health))] // 强制要求挂载 Health 组件
+[RequireComponent(typeof(Health))] // Requires a Health component.
 public class Zombie : MonoBehaviour
 {
     [Header("Target")]
@@ -50,7 +50,7 @@ public class Zombie : MonoBehaviour
     [SerializeField] private float planeY3D = 0f;
 
     private Rigidbody rb;
-    private Health myHealth; // 自身的血量组件
+    private Health myHealth; // Health component on this zombie.
     
     private bool dimensionSyncReady;
     private bool lastPlayerWas2D = true;
@@ -62,10 +62,10 @@ public class Zombie : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         rb.constraints |= RigidbodyConstraints.FreezeRotation;
         
-        myHealth = GetComponent<Health>(); // 获取自身的血量
+        myHealth = GetComponent<Health>(); // Get this zombie's Health component.
     }
 
-    // === 新增：生命周期事件订阅 ===
+    // Added: lifecycle event subscription
     private void OnEnable()
     {
         if (myHealth != null)
@@ -82,12 +82,12 @@ public class Zombie : MonoBehaviour
         }
     }
 
-    // === 新增：死亡处理逻辑 ===
+    // Added: death handling logic
     private void HandleDeath()
     {
-        Debug.Log($"[Zombie] '{gameObject.name}' 死亡并被销毁！");
+        Debug.Log($"[Zombie] '{gameObject.name}' died and was destroyed!");
         
-        // 如果你以后有死亡特效或爆金币的逻辑，可以写在这里
+        // If you add death effects or coin-drop logic later, put it here.
         // Instantiate(deathVFX, transform.position, Quaternion.identity);
 
         Destroy(gameObject);

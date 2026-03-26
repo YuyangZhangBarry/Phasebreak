@@ -52,7 +52,7 @@ public class RogueliteUIManager : MonoBehaviour
     [SerializeField] private GameObject dimensionUnlockToastRoot;
 
     [Tooltip("Message shown when dimension switch is unlocked.")]
-    [SerializeField] private string dimensionUnlockMessage = "维度切换已解锁！按 F 键切换";
+    [SerializeField] private string dimensionUnlockMessage = "Dimension switch unlocked! Press F to switch.";
 
     [Tooltip("How long the toast stays visible (seconds).")]
     [SerializeField] private float dimensionUnlockToastDuration = 3f;
@@ -237,6 +237,13 @@ public class RogueliteUIManager : MonoBehaviour
             PlayerStatsManager.Instance.ApplyUpgrade(picked);
         else
             Debug.LogWarning("[RogueliteUIManager] Missing PlayerStatsManager.Instance.", this);
+
+        if (picked != null)
+        {
+            GameStatsManager.EnsureExists();
+            if (GameStatsManager.Instance != null)
+                GameStatsManager.Instance.RecordUpgrade(picked.upgradeType);
+        }
 
         // Toast only the first time dimension switch becomes unlocked (e.g. first unlock in Level 2+).
         bool wasAlreadyUnlocked =

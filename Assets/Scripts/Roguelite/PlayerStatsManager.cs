@@ -129,6 +129,10 @@ public class PlayerStatsManager : MonoBehaviour
         isDead = true;
         Debug.Log("[PlayerStatsManager] Player died! Loading GameOver scene.");
 
+        GameStatsManager.EnsureExists();
+        if (GameStatsManager.Instance != null)
+            GameStatsManager.Instance.RecordDeath();
+
         // Unsubscribe before destroying
         if (playerHealth != null)
         {
@@ -456,7 +460,7 @@ public class PlayerStatsManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 强制收回 2D -> 3D 维度切换的权限（通常用于第一关新手教程）
+    /// Force-lock the 2D -> 3D dimension switch permission (typically used in the tutorial on Level 1).
     /// </summary>
     public void UnlockDimensionSwitch()
     {

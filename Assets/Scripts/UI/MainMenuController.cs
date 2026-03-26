@@ -46,6 +46,9 @@ public class MainMenuController : MonoBehaviour
     private bool _upgradePanelBuilt;
     private bool _controlsPanelBuilt;
 
+    [Header("Stats (optional: drag a StatsPanelController-backed panel root in the scene)")]
+    [SerializeField] private StatsPanelController statsPanelController;
+
     private void Awake()
     {
         BuildMainMenuUi();
@@ -250,6 +253,20 @@ public class MainMenuController : MonoBehaviour
 
         Button controlsBtn = CreateStyledButton(menuCol.transform, "ControlsButton", "Controls", OpenControls, BtnPrimary, BtnPrimaryHover);
         controlsBtn.gameObject.AddComponent<LayoutElement>().preferredHeight = 70f;
+
+        if (statsPanelController != null)
+        {
+            CreateSpacer(menuCol.transform, 12f);
+            Button statsBtn = CreateStyledButton(menuCol.transform, "StatsButton", "Stats", OpenStatsPanel, BtnPrimary, BtnPrimaryHover);
+            statsBtn.gameObject.AddComponent<LayoutElement>().preferredHeight = 70f;
+        }
+    }
+
+    /// <summary>Open local stats panel (requires <see cref="statsPanelController"/> to be assigned in Inspector).</summary>
+    public void OpenStatsPanel()
+    {
+        if (statsPanelController != null)
+            statsPanelController.OpenPanel();
     }
 
     private void BuildControlsPanelUi()

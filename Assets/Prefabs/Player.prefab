@@ -277,6 +277,7 @@ GameObject:
   - component: {fileID: 1667753745264432470}
   - component: {fileID: 3812031113066134279}
   - component: {fileID: 6728493015672839485}
+  - component: {fileID: 5754343567147750788}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -487,6 +488,19 @@ MonoBehaviour:
   totalVisibleDuration: 5
   phaseBlinkHz: 2.5
   ignorePlayerPrefsForTesting: 0
+--- !u!114 &5754343567147750788
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7098298377403808585}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 642761b530fa546299da616a85abc583, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GameplayTimeStatsTracker
+  useUnscaledDeltaTime: 0
 --- !u!1 &7215783731923524804
 GameObject:
   m_ObjectHideFlags: 0

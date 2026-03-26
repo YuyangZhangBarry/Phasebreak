@@ -4,7 +4,7 @@ using UnityEngine;
 /// <summary>
 /// Floating eye: every attackCooldown seconds, snapshots player position once,
 /// then fires bullets in a straight line along that direction.
-/// 【已升级】：兼容精英怪大招锁 (isEliteSweeping)
+/// Upgraded: compatible with elite enemy ability lock (isEliteSweeping).
 /// </summary>
 public class FloatingEyeAttack : MonoBehaviour
 {
@@ -24,7 +24,7 @@ public class FloatingEyeAttack : MonoBehaviour
     [Header("Optional facing")]
     public float rotateTowardPlayerSpeed = 45f;
 
-    // 【新增】精英大招状态锁
+    // Elite ability lock flag.
     [HideInInspector] public bool isEliteSweeping = false;
 
     private Transform _player;
@@ -51,7 +51,7 @@ public class FloatingEyeAttack : MonoBehaviour
 
     private void Update()
     {
-        // 【核心修改】：如果精英怪正在放大招，停止追踪玩家的旋转！
+        // Core change: if elite ability is active, stop rotating toward the player.
         if (rotateTowardPlayerSpeed <= 0f || isEliteSweeping)
             return;
 
@@ -96,7 +96,7 @@ public class FloatingEyeAttack : MonoBehaviour
 
         while (enabled)
         {
-            // 【核心修改】：正在放大招时，普通攻击协程挂起等待，不发射子弹
+            // Core change: while the elite ability is active, pause this coroutine and do not fire bullets.
             if (isEliteSweeping)
             {
                 yield return null;
@@ -118,7 +118,7 @@ public class FloatingEyeAttack : MonoBehaviour
 
                 for (int i = 0; i < bulletsPerBurst; i++)
                 {
-                    // 防止连发中途突然进入大招
+                    // Prevent burst firing from mid-way entering elite mode.
                     if (isEliteSweeping) break;
 
                     GameObject go = Instantiate(bulletPrefab, origin, Quaternion.LookRotation(dir));

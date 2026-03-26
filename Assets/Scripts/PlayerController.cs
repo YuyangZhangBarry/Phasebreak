@@ -13,7 +13,7 @@ using UnityEditor;
 public class PlayerController : MonoBehaviour
 {
     [Header("Attack hit detection")]
-    [Tooltip("攻击判定中心点的高度补偿（从脚底向上偏移的距离）")]
+    [Tooltip("Height offset for the attack hit center (distance above the feet pivot).")]
     public float attackHeightOffset = 1.0f;
 
     [Header("Movement Settings")]
@@ -44,9 +44,9 @@ public class PlayerController : MonoBehaviour
     public float maxFallSpeed = 20f;
 
     [Header("Dash Settings")]
-    public float dashSpeed = 15f;      // 冲刺极速
-    public float dashDuration = 0.2f;  // 冲刺持续时间
-    public float dashCooldown = 5f;    // 冲刺冷却时间
+    public float dashSpeed = 15f;      // dash speed
+    public float dashDuration = 0.2f;  // dash duration
+    public float dashCooldown = 5f;    // dash cooldown
 
     [Header("References")]
     public Transform vcam3DTransform;
@@ -78,7 +78,7 @@ public class PlayerController : MonoBehaviour
     [Tooltip("Damage applied to each enemy hit by the 2D melee cone (requires Health on target).")]
     public float meleeDamage = 10f;
 
-    [Tooltip("近战攻击的击退力度")]
+    [Tooltip("Melee knockback force.")]
     public float knockbackForce = 15f;
 
     [Header("3D Melee — Vertical Cleave (OverlapBox)")]
@@ -128,7 +128,7 @@ public class PlayerController : MonoBehaviour
 
     private Rigidbody rb;
     private ModeSwitcher modeSwitcher; 
-    private GhostTrail ghostTrail;     // 抓取残影脚本
+    private GhostTrail ghostTrail;     // GhostTrail component used by PlayerController.
 
     private Vector3 movementInput;
 
@@ -137,7 +137,7 @@ public class PlayerController : MonoBehaviour
 
     private float nextJumpAllowedTime = -100f;
 
-    // 状态机变量
+    // State machine variables
     private bool isDashing = false;
     private float lastDashTime = -100f;
 
@@ -158,7 +158,7 @@ public class PlayerController : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         modeSwitcher = GetComponent<ModeSwitcher>(); 
-        ghostTrail = GetComponentInChildren<GhostTrail>(); // 获取残影组件
+        ghostTrail = GetComponentInChildren<GhostTrail>(); // Get GhostTrail component.
 
         nextMeleeAttackTime = -Mathf.Infinity;
         next3DMeleeAttackTime = -Mathf.Infinity;
@@ -266,12 +266,13 @@ public class PlayerController : MonoBehaviour
                 TryJump3D();
         }
 
-        // === 1. 如果正在冲刺，直接锁死后续输入（霸体状态） ===
+        // Priority 1: if dashing, lock out further inputs (override movement).
         if (isDashing) return;
 
         bool pointerOverUi = IsPointerOverUiThisFrame();
 
-        // 3D：Esc 解锁后，左键先重新捕获光标（本帧不触发近战）。点在 UI 上时不要抢点击（Level Complete 等）。
+        // 3D: after unlocking with Esc, left click can recapture cursor this frame
+        // (and should not steal UI clicks, e.g. Level Complete).
         bool cursorRecapturedThisFrame = false;
         if (modeSwitcher != null &&
             !modeSwitcher.is2DMode &&
@@ -285,7 +286,7 @@ public class PlayerController : MonoBehaviour
             cursorRecapturedThisFrame = true;
         }
 
-        // === 2. 抓取移动输入 ===
+        // Priority 2: capture movement input
         Vector2 input = Vector2.zero;
         if (Keyboard.current != null)
         {
@@ -441,7 +442,7 @@ public class PlayerController : MonoBehaviour
     {
         if (rb != null && rb.isKinematic)
             return;
-        // 冲刺时，常规的移动逻辑交出控制权
+        // During dash, regular movement logic gives up control
         if (isDashing) return; 
 
         if (modeSwitcher.is2DMode) 
@@ -491,7 +492,7 @@ public class PlayerController : MonoBehaviour
 
     private void Dash()
     {
-        // 检查冷却，且必须有移动方向才能冲刺（原地不能瞎冲）
+        // Check cooldown and require a movement direction for dash (no dash from standing still)
         if (Time.time >= lastDashTime + dashCooldown && movementInput.magnitude > 0.1f)
         {
             StartCoroutine(PerformDashCoroutine());
@@ -587,7 +588,7 @@ public class PlayerController : MonoBehaviour
             float angle = Vector3.Angle(forward, toEnemy);
             if (angle <= halfAngle)
             {
-                // 1. 获取 Health 组件并扣血
+                // 1) Get Health component and apply damage
                 Health health = hit.GetComponentInParent<Health>();
                 if (health == null)
                     health = hit.GetComponent<Health>();
@@ -596,22 +597,22 @@ public class PlayerController : MonoBehaviour
                 {
                     health.TakeDamage(meleeDamage);
 
-                    // 2. === 新增：击退逻辑 ===
-                    // 尝试获取怪物身上的 Rigidbody
+                    // 2) Added: knockback logic
+                    // Try to get Rigidbody from the enemy
                     Rigidbody enemyRb = hit.GetComponentInParent<Rigidbody>();
                     if (enemyRb == null) enemyRb = hit.GetComponent<Rigidbody>();
 
                     if (enemyRb != null)
                     {
-                        // 计算纯 XZ 平面的击退方向
+                        // Compute knockback direction using XZ plane only
                         Vector3 knockbackDir = toEnemy.normalized;
                         knockbackDir.y = 0f;
 
-                        // 【手感秘诀】：在施加击退力之前，先把怪物当前的速度清零。
-                        // 这样每次击退的距离都是恒定、干脆的，不会因为怪物正在朝你跑来而抵消力度。
+                        // Feel trick: clear the enemy's current velocity before applying knockback.
+                        // This keeps knockback distance consistent and avoids cancellation from enemy motion.
                         enemyRb.linearVelocity = new Vector3(0f, enemyRb.linearVelocity.y, 0f);
                         
-                        // 施加瞬间爆发力 (Impulse)
+                        // Apply an impulse burst (Impulse)
                         enemyRb.AddForce(knockbackDir * knockbackForce, ForceMode.Impulse);
                     }
                 }
@@ -796,27 +797,27 @@ public class PlayerController : MonoBehaviour
 
     private IEnumerator PerformDashCoroutine()
     {
-        // 进入冲刺状态
+        // Enter dash state
         isDashing = true;
         lastDashTime = Time.time;
 
-        // 开启炫酷残影！
+        // Enable GhostTrail
         if (ghostTrail != null) ghostTrail.StartTrail();
 
-        // 记录冲刺方向并爆发速度
+        // Record dash direction and boost speed
         Vector3 dashDirection = movementInput;
         rb.linearVelocity = new Vector3(dashDirection.x * dashSpeed, 0f, dashDirection.z * dashSpeed);
 
-        // 维持 0.2 秒的极速状态
+        // Maintain dash speed for dashDuration
         yield return new WaitForSeconds(dashDuration);
 
-        // 冲刺结束，急刹车
+        // End dash and quickly stop
         rb.linearVelocity = Vector3.zero;
 
-        // 关闭残影！
+        // Disable GhostTrail
         if (ghostTrail != null) ghostTrail.StopTrail();
 
-        // 解除锁定
+        // Release lock
         isDashing = false;
     }
 

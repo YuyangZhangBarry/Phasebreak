@@ -3,47 +3,47 @@ using UnityEngine.UI;
 
 public class EnemyHealthBar : MonoBehaviour
 {
-    [Tooltip("拖入子物体里的 Slider")]
+    [Tooltip("Assign the Slider from a child object.")]
     public Slider healthSlider;
     
-    [Tooltip("怪物的 Health 组件。如果不填，会自动去父物体上找")]
+    [Tooltip("Monster Health component. If left empty, it will auto-find on the parent.")]
     public Health targetHealth; 
 
     void Start()
     {
-        // 1. 自动寻址：如果没手动拖拽，自动去父节点（僵尸根节点）找 Health 组件
+        // 1) Auto-find: if not manually assigned, find Health on the parent (enemy root).
         if (targetHealth == null)
         {
             targetHealth = GetComponentInParent<Health>();
         }
 
-        // 2. 绑定监听：订阅 Health 脚本的 OnHealthChanged 事件
+        // 2) Bind listener: subscribe to Health.OnHealthChanged
         if (targetHealth != null)
         {
             targetHealth.OnHealthChanged += UpdateHealth;
             
-            // 初始化时隐藏满血血条
+            // Hide full health bar at start.
             gameObject.SetActive(false); 
         }
         else
         {
-            Debug.LogWarning($"[EnemyHealthBar] 找不到 Health 组件！请检查层级: {gameObject.name}");
+            Debug.LogWarning($"[EnemyHealthBar] Could not find Health component. Please check hierarchy: {gameObject.name}");
         }
     }
 
     void OnDestroy()
     {
-        // 3. 释放监听：怪物死亡或销毁时，必须取消订阅，否则会导致内存泄漏！
+        // 3) Unsubscribe: required on enemy death/destruction to avoid memory leaks.
         if (targetHealth != null)
         {
             targetHealth.OnHealthChanged -= UpdateHealth;
         }
     }
 
-    // 当 Health 脚本触发 OnHealthChanged 时，会自动调用这个方法
+    // Called automatically when Health triggers OnHealthChanged.
     public void UpdateHealth(float currentHealth, float maxHealth)
     {
-        // 只要不是满血，就显示血条
+        // Show health bar when not full health.
         if (currentHealth < maxHealth && currentHealth > 0)
         {
             gameObject.SetActive(true); 
@@ -52,7 +52,7 @@ public class EnemyHealthBar : MonoBehaviour
         healthSlider.maxValue = maxHealth;
         healthSlider.value = currentHealth;
         
-        // 如果血量归零，可以再次隐藏血条（如果怪物尸体还要留在场上的话）
+        // If health reaches zero, hide the bar again (if the corpse remains in the scene).
         if (currentHealth <= 0)
         {
             gameObject.SetActive(false);

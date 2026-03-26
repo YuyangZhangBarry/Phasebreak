@@ -308,6 +308,7 @@ MonoBehaviour:
   boss: {fileID: 0}
   minFallSpeed: -0.4
   heightAboveBossForPlunge: 1.2
+  executeMinFallSpeed: -1
 --- !u!1 &7702818465181519657
 GameObject:
   m_ObjectHideFlags: 0
@@ -464,7 +465,7 @@ MonoBehaviour:
   turnSpeedDegrees: 90
   attackCycleInterval: 7
   windupDuration: 1.5
-  slamRadius: 5
+  slamRadius: 3
   slamDamageToPlayer: 20
   shockwavePrefab: {fileID: 104201452603566337, guid: 80a9b122d30234b0f9ae91ba99d25816, type: 3}
   shockwaveSpawnOffset: {x: 0, y: 0, z: 0}

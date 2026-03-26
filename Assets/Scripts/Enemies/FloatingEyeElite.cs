@@ -2,8 +2,8 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// 精英怪专属技能：每隔一段时间开启 360 度旋转激光。
-/// 开启时会利用 isEliteSweeping 锁住基础 AI 的移动和索敌。
+/// Elite enemy exclusive skill: periodically enables a 360-degree rotating laser.
+/// When active, it uses <c>isEliteSweeping</c> to lock the base AI from moving/targeting.
 /// </summary>
 [RequireComponent(typeof(FloatingEyeMovement))]
 [RequireComponent(typeof(FloatingEyeAttack))]
@@ -15,14 +15,14 @@ public class FloatingEyeElite : MonoBehaviour
     public float laserRange = 40f;
     
     [Header("Elite Ability Settings")]
-    public float attackInterval = 10f;      // 每10秒放一次大招
-    public float warningDuration = 1.5f;    // 闪烁预警时间
-    public float laserDuration = 2f;        // 激光扫射持续时间
-    public float rotationSpeed = 180f;      // 旋转速度(度/秒)，180就是2秒转一圈
+    public float attackInterval = 10f;      // every 10 seconds
+    public float warningDuration = 1.5f;    // warning flicker duration
+    public float laserDuration = 2f;        // sweep laser duration
+    public float rotationSpeed = 180f;      // rotation speed (deg/s); 180 = one rotation in 2 seconds
     
     [Header("Laser Damage")]
-    public float laserDamagePerTick = 15f;  // 扫到一次的伤害
-    public float damageTickRate = 0.5f;     // 每0.5秒最多受一次伤(防秒杀)
+    public float laserDamagePerTick = 15f;  // damage per tick
+    public float damageTickRate = 0.5f;     // max once per 0.5s (prevents instant kill)
 
     private FloatingEyeMovement _movementScript;
     private FloatingEyeAttack _attackScript;
@@ -40,7 +40,7 @@ public class FloatingEyeElite : MonoBehaviour
         _attackScript = GetComponent<FloatingEyeAttack>();
         _rb = GetComponent<Rigidbody>();
         
-        // 尝试获取材质用于闪烁红光
+        // Try to get material for red blinking
         _meshRenderer = GetComponentInChildren<MeshRenderer>();
         if (_meshRenderer != null) _originalColor = _meshRenderer.material.color;
 
@@ -50,7 +50,7 @@ public class FloatingEyeElite : MonoBehaviour
 
     void Update()
     {
-        // 技能倒计时
+        // Ability countdown
         _skillTimer -= Time.deltaTime;
         if (_skillTimer <= 0 && !_isUsingEliteSkill)
         {
@@ -62,11 +62,11 @@ public class FloatingEyeElite : MonoBehaviour
     {
         _isUsingEliteSkill = true;
 
-        // 1. 【核心上锁】：通知基础 AI 停止乱动和开火
+        // 1) Core lock: notify base AI to stop moving and firing
         _movementScript.isEliteSweeping = true;
         _attackScript.isEliteSweeping = true;
 
-        // 2. 预警阶段：红光闪烁
+        // 2) Warning phase: red flicker
         float elapsed = 0;
         bool isRed = false;
         while (elapsed < warningDuration)
@@ -79,7 +79,7 @@ public class FloatingEyeElite : MonoBehaviour
         }
         if (_meshRenderer != null) _meshRenderer.material.color = _originalColor;
 
-        // 3. 扫射阶段：开启激光，利用 Rigidbody 旋转
+        // 3) Sweep phase: enable laser and rotate using Rigidbody
         if (laserLine != null) laserLine.enabled = true;
         
         float attackElapsed = 0;
@@ -89,7 +89,7 @@ public class FloatingEyeElite : MonoBehaviour
         {
             attackElapsed += Time.fixedDeltaTime;
 
-            // 物理平滑旋转
+            // Smooth physical rotation
             Quaternion rotDelta = Quaternion.Euler(0, rotationSpeed * Time.fixedDeltaTime, 0);
             _rb.MoveRotation(_rb.rotation * rotDelta);
 
@@ -99,10 +99,10 @@ public class FloatingEyeElite : MonoBehaviour
             yield return fixedUpdateWait;
         }
 
-        // 4. 收尾阶段：关闭激光
+        // 4) End phase: disable laser
         if (laserLine != null) laserLine.enabled = false;
         
-        // 【核心解锁】：归还控制权，继续吐子弹！
+        // Core unlock: restore control and continue firing bullets
         _movementScript.isEliteSweeping = false;
         _attackScript.isEliteSweeping = false;
 
@@ -114,7 +114,7 @@ public class FloatingEyeElite : MonoBehaviour
     {
         if (laserLine == null) return;
         
-        // 【修改】：使用 laserLine 自身的坐标，完美继承你在 Inspector 里设置的 Y=1 偏移量！
+        // Use laserLine's own transform so the Inspector Y offset is preserved.
         Vector3 startPoint = laserLine.transform.position;
         Vector3 endPoint = startPoint + transform.forward * laserRange;
         
@@ -127,10 +127,10 @@ public class FloatingEyeElite : MonoBehaviour
         if (Time.time < _nextDamageTime) return;
 
         Vector3 startPoint = laserLine.transform.position;
-        // 定义光柱的粗细（半径），比如 1.0f。这样即使起点在 Y=2，也能往下覆盖到 Y=1 的位置
+        // Define laser thickness (radius). For example, 1.0f ensures coverage downward even if the start point is at Y=2.
         float laserThickness = 1.0f; 
 
-        // 【核心修改】：用 SphereCast 代替 Raycast
+        // Core change: use SphereCastAll instead of Raycast
         RaycastHit[] hits = Physics.SphereCastAll(startPoint, laserThickness, transform.forward, laserRange);
         
         foreach (RaycastHit hit in hits)
