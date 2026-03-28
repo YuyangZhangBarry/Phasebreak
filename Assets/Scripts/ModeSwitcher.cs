@@ -2,11 +2,11 @@ using System;
 using UnityEngine;
 using Unity.Cinemachine;
 using UnityEngine.InputSystem;
-using System.Collections;
 
 /// <summary>
-/// 2D / 3D dimension toggle. Pivot at feet: 2D locks Y to <see cref="planeY2D"/>.
-/// Switching to 3D raycasts down (<see cref="environmentLayer"/>) to land on platforms; fallback <see cref="planeY3D"/>.
+/// 纯状态机：2D / 3D 维度切换。脚底为轴心点：2D 锁定 Y 到 <see cref="planeY2D"/>。
+/// 切换到 3D 时向下射线检测 (<see cref="environmentLayer"/>) 着陆平台；回退 <see cref="planeY3D"/>。
+/// 所有视觉反馈（Hitstop、后处理、形变等）由 DimensionShiftDirector 编排，本类不包含任何视觉代码。
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(Collider))]
@@ -45,11 +45,14 @@ public class ModeSwitcher : MonoBehaviour
     /// <summary>Fired after dimension changes. Argument is <see cref="is2DMode"/> (true = 2D).</summary>
     public event Action<bool> OnDimensionChanged;
 
-    /// <summary>Fired after <see cref="DimensionShiftJuice"/> ends (time scale restored). Use for first-time UI.</summary>
+    /// <summary>由 DimensionShiftDirector 在过渡演出结束后通过 <see cref="NotifyShiftComplete"/> 触发。</summary>
     public event Action OnDimensionShiftComplete;
 
     public bool is2DMode { get; private set; }
     public GameMode CurrentMode { get; private set; }
+
+    /// <summary>过渡期间为 true，F 键被硬性屏蔽。由 DimensionShiftDirector 设置/清除。</summary>
+    [HideInInspector] public bool isTransitioning;
 
     [Header("Dimension Switch Lock")]
     [Tooltip("When false, switching from 2D -> 3D is blocked (2D is still the default).")]
@@ -71,6 +74,8 @@ public class ModeSwitcher : MonoBehaviour
         SnapPlayerY(planeY2D);
         rb.constraints = RigidbodyConstraints.FreezeRotation | RigidbodyConstraints.FreezePositionY;
         rb.useGravity = false;
+        
+        // 保留 X/Z 惯性，仅抹杀 Y 轴速度
         rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
     }
 
@@ -78,6 +83,9 @@ public class ModeSwitcher : MonoBehaviour
     {
         if (Keyboard.current != null && Keyboard.current.fKey.wasPressedThisFrame)
         {
+            if (isTransitioning)
+                return;
+
             if (is2DMode && !isDimensionSwitchUnlocked)
                 return;
 
@@ -88,7 +96,6 @@ public class ModeSwitcher : MonoBehaviour
     private void LateUpdate()
     {
         // 2D mode: keep pivot at feet locked to the 2D plane.
-        // This prevents slow drift caused by physics penetration resolution or initialization order.
         if (!is2DMode || rb == null)
             return;
 
@@ -108,8 +115,6 @@ public class ModeSwitcher : MonoBehaviour
     {
         is2DMode = !is2DMode;
 
-        StartCoroutine(DimensionShiftJuice());
-
         if (is2DMode)
         {
             CurrentMode = GameMode.Mode2D;
@@ -121,6 +126,8 @@ public class ModeSwitcher : MonoBehaviour
             SnapPlayerY(planeY2D);
             rb.constraints = RigidbodyConstraints.FreezeRotation | RigidbodyConstraints.FreezePositionY;
             rb.useGravity = false;
+            
+            // 【关键修改】切回 2D 时完美保留冲刺惯性
             rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
         }
         else
@@ -149,6 +156,16 @@ public class ModeSwitcher : MonoBehaviour
     }
 
     /// <summary>
+    /// 由 DimensionShiftDirector 在过渡演出结束后调用，解除过渡锁并广播完成事件。
+    /// 若场景中无 Director，外部也可直接调用以保证兼容。
+    /// </summary>
+    public void NotifyShiftComplete()
+    {
+        isTransitioning = false;
+        OnDimensionShiftComplete?.Invoke();
+    }
+
+    /// <summary>
     /// From current XZ (2D top-down position over a platform), ray down through environment layers and place feet on the hit surface.
     /// </summary>
     private void Apply3DLandingFrom2DPosition()
@@ -169,7 +186,8 @@ public class ModeSwitcher : MonoBehaviour
 
         transform.position = p;
 
-        rb.linearVelocity = Vector3.zero;
+        // 【关键修改：解决“撞墙感”】落地时只清零 Y 轴速度和旋转，完美继承 X 和 Z 轴的冲刺动量
+        rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
         rb.angularVelocity = Vector3.zero;
     }
 
@@ -180,16 +198,4 @@ public class ModeSwitcher : MonoBehaviour
         transform.position = p;
     }
 
-    private IEnumerator DimensionShiftJuice()
-    {
-        Time.timeScale = 0.1f;
-        Time.fixedDeltaTime = 0.02f * Time.timeScale;
-
-        yield return new WaitForSecondsRealtime(0.15f);
-
-        Time.timeScale = 1f;
-        Time.fixedDeltaTime = 0.02f;
-
-        OnDimensionShiftComplete?.Invoke();
-    }
 }

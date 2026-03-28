@@ -58,6 +58,10 @@ public class PlayerController : MonoBehaviour
     [Tooltip("Max degrees per second when rotating toward camera forward. Set 0 for instant snap.")]
     [SerializeField] private float rotation3DAlignDegreesPerSecond = 540f;
 
+    [Header("2D Facing (方案 C)")]
+    [Tooltip("2D 模式下身体朝向跟随移动方向的旋转速度（度/秒）。0 = 瞬间对齐。")]
+    [SerializeField] private float facing2DDegreesPerSecond = 720f;
+
     [Header("Cursor")]
     [Tooltip("If true, 2D mode uses Confined so the cursor stays inside the game window. If false, uses None.")]
     [SerializeField] private bool confineCursorIn2D = true;
@@ -147,6 +151,9 @@ public class PlayerController : MonoBehaviour
 
     /// <summary>Space held this frame (for low-jump gravity in FixedUpdate).</summary>
     private bool jumpInputHeld;
+
+    /// <summary>2D: body faces mouse direction until this time (for attack facing snap).</summary>
+    private float attackFacingEndTime;
 
     /// <summary>3D: set true when airborne and attack pressed — execute uses this instead of strict fall speed.</summary>
     private bool isPlunging;
@@ -308,13 +315,18 @@ public class PlayerController : MonoBehaviour
             // All rotation + attack logic must be inside this 2D check.
             if (currentMode == ModeSwitcher.GameMode.Mode2D)
             {
-                Handle2DFacingByMouse();
+                Handle2DFacing();
 
                 if (!levelCompleteUi &&
                     Mouse.current != null &&
                     Mouse.current.leftButton.wasPressedThisFrame &&
                     Time.time >= nextMeleeAttackTime)
                 {
+                    attackFacingEndTime = Time.time + meleeCooldown * 0.5f;
+                    Vector3 mouseDir = GetMouseWorldDirection();
+                    if (mouseDir.sqrMagnitude > 0.001f)
+                        transform.rotation = Quaternion.LookRotation(mouseDir, Vector3.up);
+
                     nextMeleeAttackTime = Time.time + meleeCooldown;
                     if (weaponSwingVisual != null)
                         weaponSwingVisual.PlaySwing();
@@ -529,10 +541,37 @@ public class PlayerController : MonoBehaviour
                 rotation3DAlignDegreesPerSecond * Time.deltaTime);
     }
 
-    private void Handle2DFacingByMouse()
+    /// <summary>
+    /// 方案 C：移动时身体朝向跟随 WASD 方向（平滑旋转）；攻击窗口期间身体瞬间朝向鼠标。
+    /// </summary>
+    private void Handle2DFacing()
+    {
+        if (Time.time < attackFacingEndTime)
+        {
+            Vector3 mouseDir = GetMouseWorldDirection();
+            if (mouseDir.sqrMagnitude > 0.001f)
+                transform.rotation = Quaternion.LookRotation(mouseDir, Vector3.up);
+            return;
+        }
+
+        if (movementInput.sqrMagnitude > 0.01f)
+        {
+            Quaternion targetRot = Quaternion.LookRotation(movementInput.normalized, Vector3.up);
+            if (facing2DDegreesPerSecond <= 0f)
+                transform.rotation = targetRot;
+            else
+                transform.rotation = Quaternion.RotateTowards(
+                    transform.rotation, targetRot, facing2DDegreesPerSecond * Time.deltaTime);
+        }
+    }
+
+    /// <summary>
+    /// 从玩家位置指向鼠标在世界 XZ 平面上投影点的归一化方向。
+    /// </summary>
+    private Vector3 GetMouseWorldDirection()
     {
         if (Camera.main == null || Mouse.current == null)
-            return;
+            return transform.forward;
 
         Ray ray = Camera.main.ScreenPointToRay(Mouse.current.position.ReadValue());
         Plane plane = new Plane(Vector3.up, transform.position);
@@ -540,12 +579,13 @@ public class PlayerController : MonoBehaviour
         if (plane.Raycast(ray, out float enter))
         {
             Vector3 worldPoint = ray.GetPoint(enter);
-            Vector3 lookDir = worldPoint - transform.position;
-            lookDir.y = 0f;
-
-            if (lookDir.sqrMagnitude > 0.000001f)
-                transform.rotation = Quaternion.LookRotation(lookDir, Vector3.up);
+            Vector3 dir = worldPoint - transform.position;
+            dir.y = 0f;
+            if (dir.sqrMagnitude > 0.000001f)
+                return dir.normalized;
         }
+
+        return transform.forward;
     }
 
     /// <summary>
