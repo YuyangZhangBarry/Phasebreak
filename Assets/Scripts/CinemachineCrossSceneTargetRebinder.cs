@@ -1,22 +1,16 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.Animations;
 using Unity.Cinemachine;
 
 /// <summary>
-/// Fixes Cinemachine after <see cref="SceneManager.LoadScene"/> when the <b>Player</b> uses
-/// <see cref="PlayerStatsManager"/> + <c>DontDestroyOnLoad</c>:
-/// <list type="bullet">
-/// <item>New scene <see cref="CinemachineCamera"/>s still point at the destroyed duplicate Player.</item>
-/// <item><see cref="ModeSwitcher"/> on the persistent Player still references destroyed Level-1 vcams.</item>
-/// </list>
-/// Subscribes to <see cref="SceneManager.sceneLoaded"/> and reassigns TrackingTarget + ModeSwitcher / PlayerController refs.
-/// 3D vcam uses the player's <c>Head</c> child when present (see <see cref="FindHeadTransform"/>).
+/// Fixes Cinemachine after SceneManager.LoadScene when the Player uses DontDestroyOnLoad.
 /// </summary>
 public static class CinemachineCrossSceneTargetRebinder
 {
     const string VCam2DObjectName = "VCam_2D";
     const string VCam3DObjectName = "VCam_3D";
-    const string HeadObjectName = "Head";
+    const string CameraTargetName = "CameraTarget"; 
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void Register()
@@ -27,64 +21,68 @@ public static class CinemachineCrossSceneTargetRebinder
 
     private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        // Run next frame so all scene objects finish enabling (safe for Cinemachine Brain).
         RebindRunner.Queue(Rebind);
     }
 
     private static void Rebind()
     {
         Transform player = ResolvePlayerTransform();
-        if (player == null)
-        {
-            Debug.LogWarning("[CinemachineCrossSceneTargetRebinder] No Player found (tag / PlayerStatsManager / PlayerController). Camera follow not rebound.");
-            return;
-        }
+        if (player == null) return;
 
         CinemachineCamera[] vcams = Object.FindObjectsByType<CinemachineCamera>(FindObjectsSortMode.None);
-        if (vcams == null || vcams.Length == 0)
-            return;
+        if (vcams == null || vcams.Length == 0) return;
 
-        Transform head = FindHeadTransform(player);
-
-        foreach (CinemachineCamera vcam in vcams)
+        Transform camTarget = null;
+        GameObject targetObj = GameObject.Find(CameraTargetName);
+        
+        if (targetObj != null)
         {
-            if (vcam == null) continue;
-
-            CameraTarget t = vcam.Target;
-            if (vcam.gameObject.name == VCam3DObjectName)
+            camTarget = targetObj.transform;
+            PositionConstraint constraint = targetObj.GetComponent<PositionConstraint>();
+            if (constraint != null)
             {
-                t.TrackingTarget = head != null ? head : player;
-                if (head == null)
-                {
-                    Debug.LogWarning(
-                        "[CinemachineCrossSceneTargetRebinder] No transform named 'Head' under Player — VCam_3D tracks player root. Add a child named Head.",
-                        player);
-                }
-            }
-            else
-            {
-                t.TrackingTarget = player;
-            }
+                if (constraint.sourceCount > 0) 
+                    constraint.RemoveSource(0);
 
-            vcam.Target = t;
+                ConstraintSource source = new ConstraintSource();
+                source.sourceTransform = player;
+                source.weight = 1f;
+                constraint.AddSource(source);
+                
+                // 【绝杀补丁】：强行清零 Prefab 带来的记忆偏移量！
+                constraint.translationOffset = Vector3.zero; 
+                constraint.constraintActive = true;
+            }
         }
 
         ModeSwitcher modeSwitcher = player.GetComponent<ModeSwitcher>();
         if (modeSwitcher == null)
             modeSwitcher = player.GetComponentInChildren<ModeSwitcher>();
 
-        if (modeSwitcher != null)
+        foreach (CinemachineCamera vcam in vcams)
         {
-            foreach (CinemachineCamera vcam in vcams)
+            if (vcam == null) continue;
+
+            CameraTarget t = vcam.Target;
+            string n = vcam.gameObject.name;
+            
+            if (n == VCam3DObjectName)
             {
-                if (vcam == null) continue;
-                string n = vcam.gameObject.name;
-                if (n == VCam2DObjectName)
-                    modeSwitcher.vcam2D = vcam;
-                else if (n == VCam3DObjectName)
-                    modeSwitcher.vcam3D = vcam;
+                t.TrackingTarget = camTarget != null ? camTarget : player;
+                if (modeSwitcher != null) modeSwitcher.vcam3D = vcam;
+            }
+            else if (n == VCam2DObjectName)
+            {
+                t.TrackingTarget = player;
+                if (modeSwitcher != null) modeSwitcher.vcam2D = vcam;
             }
 
+            vcam.Target = t;
+        }
+
+        if (modeSwitcher != null)
+        {
+            // 分配优先级，并通知代码拿到新摄像机
             ApplyVcamPriorities(modeSwitcher);
 
             PlayerController pc = player.GetComponent<PlayerController>();
@@ -108,55 +106,30 @@ public static class CinemachineCrossSceneTargetRebinder
         return pc != null ? pc.transform : null;
     }
 
-    /// <summary>Direct child named Head, else first descendant named Head (e.g. under rig).</summary>
-    private static Transform FindHeadTransform(Transform playerRoot)
-    {
-        if (playerRoot == null)
-            return null;
-
-        Transform direct = playerRoot.Find(HeadObjectName);
-        if (direct != null)
-            return direct;
-
-        foreach (Transform t in playerRoot.GetComponentsInChildren<Transform>(true))
-        {
-            if (t != playerRoot && t.name == HeadObjectName)
-                return t;
-        }
-
-        return null;
-    }
-
-    /// <summary>Mirrors <see cref="ModeSwitcher"/> priority rules without calling ToggleDimension.</summary>
+    // 【绝杀补丁】：即使某个摄像机没找到，也不会让代码崩溃，确保优先级顺利发放
     private static void ApplyVcamPriorities(ModeSwitcher ms)
     {
-        if (ms.vcam2D == null || ms.vcam3D == null)
-            return;
-
         if (ms.is2DMode)
         {
-            ms.vcam2D.Priority = 20;
-            ms.vcam3D.Priority = 10;
+            if (ms.vcam2D != null) ms.vcam2D.Priority = 20;
+            if (ms.vcam3D != null) ms.vcam3D.Priority = 10;
         }
         else
         {
-            ms.vcam3D.Priority = 20;
-            ms.vcam2D.Priority = 10;
+            if (ms.vcam3D != null) ms.vcam3D.Priority = 20;
+            if (ms.vcam2D != null) ms.vcam2D.Priority = 10;
         }
     }
 
-    /// <summary>Runs an action on the next Unity player loop tick.</summary>
     private sealed class RebindRunner : MonoBehaviour
     {
         private System.Action _action;
-
         public static void Queue(System.Action action)
         {
             var go = new GameObject(nameof(RebindRunner));
             var r = go.AddComponent<RebindRunner>();
             r._action = action;
         }
-
         private void Start()
         {
             _action?.Invoke();

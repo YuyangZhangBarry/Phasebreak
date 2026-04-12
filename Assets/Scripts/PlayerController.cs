@@ -330,13 +330,30 @@ public class PlayerController : MonoBehaviour
 
     private void Handle3DCameraFacing()
     {
-        if (mainCameraTransform == null) return;
-        Vector3 flatForward = mainCameraTransform.forward;
-        flatForward.y = 0f;
-        if (flatForward.sqrMagnitude < 0.0001f) return;
-        flatForward.Normalize();
-        Quaternion targetRot = Quaternion.LookRotation(flatForward, Vector3.up);
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, rotation3DAlignDegreesPerSecond * Time.deltaTime);
+        // 1. 如果玩家没有按方向键，就不改变身体朝向（让他停下来时保持帅气的姿势）
+        if (movementInput.sqrMagnitude < 0.01f) 
+            return;
+
+        // 2. 确保拿到了 3D 摄像机
+        if (vcam3DTransform == null) 
+            return;
+
+        // 3. 计算相对于摄像机的世界移动方向 (和 MovePlayer 里计算位移的逻辑一样)
+        Vector3 camForward = vcam3DTransform.forward;
+        Vector3 camRight = vcam3DTransform.right;
+        camForward.y = 0; 
+        camRight.y = 0;
+        camForward.Normalize(); 
+        camRight.Normalize();
+
+        Vector3 moveDir = camForward * movementInput.z + camRight * movementInput.x;
+
+        // 4. 让角色的身体平滑地旋转到这个移动方向
+        if (moveDir.sqrMagnitude > 0.0001f)
+        {
+            Quaternion targetRot = Quaternion.LookRotation(moveDir.normalized, Vector3.up);
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, rotation3DAlignDegreesPerSecond * Time.deltaTime);
+        }
     }
 
     private void Handle2DFacing()
