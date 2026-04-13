@@ -136,9 +136,8 @@ public class PlayerController : MonoBehaviour
         modeSwitcher = GetComponent<ModeSwitcher>(); 
         ghostTrail = GetComponentInChildren<GhostTrail>(); 
         
-        animator = GetComponentInChildren<Animator>();
-        if (animator != null)
-            animator.applyRootMotion = false;
+        bool startIn2D = modeSwitcher != null && modeSwitcher.is2DMode;
+        SwitchAnimator(startIn2D);
 
         nextMeleeAttackTime = -Mathf.Infinity;
         next3DMeleeAttackTime = -Mathf.Infinity;
@@ -212,58 +211,58 @@ public class PlayerController : MonoBehaviour
         if (modeSwitcher != null)
         {
             if (modeSwitcher.is2DMode)
-            {
                 Handle2DFacing();
-                if (!levelCompleteUi && Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame && Time.time >= nextMeleeAttackTime)
+            else
+                ; // 3D facing handled earlier via Handle3DCameraFacing
+
+            bool wantsAttack = !levelCompleteUi && Mouse.current != null &&
+                               Mouse.current.leftButton.wasPressedThisFrame;
+            if (!modeSwitcher.is2DMode)
+                wantsAttack = wantsAttack && !cursorRecapturedThisFrame && !pointerOverUi;
+
+            bool ready = Time.time >= comboStepLockedUntil;
+
+            if (ready && animator != null && currentComboStep > 0)
+            {
+                AnimatorStateInfo state = animator.GetCurrentAnimatorStateInfo(0);
+                if (!state.loop && state.normalizedTime < 0.85f)
+                    ready = false;
+            }
+
+            if (wantsAttack && !ready)
+                hasBufferedAttack = true;
+
+            if (Time.time - lastAttackTime > comboWindow && ready)
+            {
+                currentComboStep = 0;
+                hasBufferedAttack = false;
+            }
+
+            bool fireNow = ready && (wantsAttack || hasBufferedAttack);
+
+            if (fireNow)
+            {
+                hasBufferedAttack = false;
+                currentComboStep = (currentComboStep % 3) + 1;
+                lastAttackTime = Time.time;
+                comboStepLockedUntil = Time.time + comboStepMinDuration;
+                attackSlowUntil = Time.time + comboStepMinDuration;
+
+                if (animator != null)
                 {
-                    attackFacingEndTime = Time.time + meleeCooldown * 0.5f;
-                    nextMeleeAttackTime = Time.time + meleeCooldown;
-                    attackSlowUntil = Time.time + meleeCooldown * 0.5f;
+                    animator.SetInteger("ComboStep", currentComboStep);
+                    animator.SetTrigger(modeSwitcher.is2DMode ? "Attack2D" : "Attack3D");
+                }
+
+                if (modeSwitcher.is2DMode)
+                {
                     if (weaponSwingVisual != null) weaponSwingVisual.PlaySwing();
-                    if (animator != null) animator.SetTrigger("Attack2D");
                     ApplyLunge(lunge2DDistance);
                     PerformMeleeAttack();
                 }
-            }
-            else
-            {
-                bool wantsAttack = !levelCompleteUi && !cursorRecapturedThisFrame && !pointerOverUi &&
-                                   Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
-
-                bool ready = Time.time >= comboStepLockedUntil;
-
-                if (ready && animator != null && currentComboStep > 0)
+                else
                 {
-                    AnimatorStateInfo state = animator.GetCurrentAnimatorStateInfo(0);
-                    if (!state.loop && state.normalizedTime < 0.85f)
-                        ready = false;
-                }
-
-                if (wantsAttack && !ready)
-                    hasBufferedAttack = true;
-
-                if (Time.time - lastAttackTime > comboWindow && ready)
-                {
-                    currentComboStep = 0;
-                    hasBufferedAttack = false;
-                }
-
-                bool fireNow = ready && (wantsAttack || hasBufferedAttack);
-
-                if (fireNow)
-                {
-                    hasBufferedAttack = false;
-                    currentComboStep = (currentComboStep % 3) + 1;
-                    lastAttackTime = Time.time;
-                    comboStepLockedUntil = Time.time + comboStepMinDuration;
                     attack3DFacingLockedUntil = Time.time + comboStepMinDuration;
-
-                    if (animator != null)
-                    {
-                        animator.SetInteger("ComboStep", currentComboStep);
-                        animator.SetTrigger("Attack3D");
-                    }
-
                     float dist = lunge3DDistances[Mathf.Clamp(currentComboStep - 1, 0, lunge3DDistances.Length - 1)];
                     ApplyLunge(dist);
                 }
@@ -305,11 +304,8 @@ public class PlayerController : MonoBehaviour
             isGrounded = TryGetGroundHit(out _);
         }
 
-        // 同步落地状态给动画机
-        if (animator != null)
-        {
+        if (animator != null && modeSwitcher != null && !modeSwitcher.is2DMode)
             animator.SetBool("IsGrounded", isGrounded);
-        }
     }
 
     private void MovePlayer()
@@ -324,11 +320,11 @@ public class PlayerController : MonoBehaviour
                 rb.linearVelocity = lungeVelocity;
             else
                 rb.linearVelocity = new Vector3(lungeVelocity.x, rb.linearVelocity.y, lungeVelocity.z);
-            if (animator != null) animator.SetFloat("Speed", 0f);
+            if (animator != null && modeSwitcher != null && !modeSwitcher.is2DMode)
+                animator.SetFloat("Speed", 0f);
             return;
         }
 
-        // 攻击减速判定：用明确的时间窗口，避免把跳跃等非循环动画误判为攻击
         bool isAttacking = Time.time < attackSlowUntil;
         if (!isAttacking && currentComboStep > 0 && animator != null)
         {
@@ -355,7 +351,7 @@ public class PlayerController : MonoBehaviour
             rb.linearVelocity = new Vector3(moveDir.x * currentSpeed, rb.linearVelocity.y, moveDir.z * currentSpeed);
         }
 
-        if (animator != null)
+        if (animator != null && modeSwitcher != null && !modeSwitcher.is2DMode)
             animator.SetFloat("Speed", isAttacking ? 0f : movementInput.magnitude);
     }
 
@@ -373,7 +369,7 @@ public class PlayerController : MonoBehaviour
         nextJumpAllowedTime = Time.time + jumpCooldown;
 
         // 同步起跳信号给动画机
-        if (animator != null)
+        if (animator != null && !modeSwitcher.is2DMode)
         {
             animator.SetTrigger("Jump");
             animator.SetBool("IsGrounded", false);
@@ -598,6 +594,26 @@ public class PlayerController : MonoBehaviour
         UpdateCursorState(!is2DMode);
         ApplyVisualLayer(is2DMode);
         if (is2DMode) isPlunging = false;
+
+        currentComboStep = 0;
+        hasBufferedAttack = false;
+        attackSlowUntil = -10f;
+        comboStepLockedUntil = -10f;
+        lungeEndTime = -10f;
+        if (animator != null)
+            animator.SetInteger("ComboStep", 0);
+
+        SwitchAnimator(is2DMode);
+    }
+
+    private void SwitchAnimator(bool is2DMode)
+    {
+        GameObject target = is2DMode ? visual2D : visual3D;
+        if (target != null)
+            animator = target.GetComponentInChildren<Animator>();
+
+        if (animator != null)
+            animator.applyRootMotion = false;
     }
 
     private void ApplyVisualLayer(bool is2DMode)
