@@ -43,6 +43,11 @@ public class PlayerController : MonoBehaviour
     public Transform vcam3DTransform;
     public Transform mainCameraTransform;
 
+    [Header("Visual Layers")]
+    public GameObject visual2D;
+    public GameObject visual3D;
+    public SpriteRenderer spriteRenderer2D;
+
     [Header("3D Camera Facing")]
     [SerializeField] private float rotation3DAlignDegreesPerSecond = 540f;
 
@@ -151,6 +156,7 @@ public class PlayerController : MonoBehaviour
         {
             modeSwitcher.OnDimensionChanged += OnPlayerDimensionChanged;
             UpdateCursorState(!modeSwitcher.is2DMode);
+            ApplyVisualLayer(modeSwitcher.is2DMode);
         }
 
         PauseMenuController.EnsureExists();
@@ -262,6 +268,18 @@ public class PlayerController : MonoBehaviour
                     ApplyLunge(dist);
                 }
             }
+        }
+    }
+
+    void LateUpdate()
+    {
+        if (modeSwitcher != null && modeSwitcher.is2DMode)
+        {
+            if (visual2D != null)
+                visual2D.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+
+            if (spriteRenderer2D != null)
+                spriteRenderer2D.flipX = transform.forward.x < 0f;
         }
     }
 
@@ -437,17 +455,9 @@ public class PlayerController : MonoBehaviour
 
     private void Handle2DFacing()
     {
-        if (Time.time < attackFacingEndTime)
-        {
-            Vector3 mouseDir = GetMouseWorldDirection();
-            if (mouseDir.sqrMagnitude > 0.001f) transform.rotation = Quaternion.LookRotation(mouseDir, Vector3.up);
-            return;
-        }
-        if (movementInput.sqrMagnitude > 0.01f)
-        {
-            Quaternion targetRot = Quaternion.LookRotation(movementInput.normalized, Vector3.up);
-            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, facing2DDegreesPerSecond * Time.deltaTime);
-        }
+        Vector3 mouseDir = GetMouseWorldDirection();
+        if (mouseDir.sqrMagnitude > 0.001f)
+            transform.rotation = Quaternion.LookRotation(mouseDir, Vector3.up);
     }
 
     private Vector3 GetMouseWorldDirection()
@@ -583,7 +593,18 @@ public class PlayerController : MonoBehaviour
         Cursor.visible = !is3D;
     }
 
-    private void OnPlayerDimensionChanged(bool is2DMode) { UpdateCursorState(!is2DMode); if (is2DMode) isPlunging = false; }
+    private void OnPlayerDimensionChanged(bool is2DMode)
+    {
+        UpdateCursorState(!is2DMode);
+        ApplyVisualLayer(is2DMode);
+        if (is2DMode) isPlunging = false;
+    }
+
+    private void ApplyVisualLayer(bool is2DMode)
+    {
+        if (visual2D != null) visual2D.SetActive(is2DMode);
+        if (visual3D != null) visual3D.SetActive(!is2DMode);
+    }
     public void UnlockCursorForMenus() 
     {
          Cursor.lockState = CursorLockMode.None; Cursor.visible = true; 
