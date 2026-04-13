@@ -68,6 +68,17 @@ public class PlayerController : MonoBehaviour
     public float melee3DCooldown = 0.75f;
     public float melee3DKnockbackForce = 18f;
 
+    [Header("3D Combo Settings")]
+    [Tooltip("每段攻击动画的最短持续时间（秒），应大致等于你最长的一段攻击动画长度。")]
+    public float comboStepMinDuration = 0.65f;
+    [Tooltip("连招窗口：上一段结束后多久内可以接出下一段。")]
+    public float comboWindow = 1.2f;
+    private int currentComboStep = 0;
+    private float lastAttackTime = -10f;
+    private float comboStepLockedUntil = -10f;
+    private bool hasBufferedAttack;
+    private float attack3DFacingLockedUntil = -10f;
+
     [Header("3D Melee — Execution")]
     [SerializeField] private string executionZoneTag = "ExecutionZone";
     [SerializeField] private bool enablePlungeStateExecute = true;
@@ -76,6 +87,18 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float plungeExecuteMinFallSpeed = -1.0f;
     public float minPlungeSpeed = -3f;
     public float weakPointPlungeFailScratchDamage = 0f;
+
+    [Header("Attack Movement")]
+    [Tooltip("攻击期间移动速度的倍率（0.15 = 15%）")]
+    [SerializeField] private float attackMoveSpeedMultiplier = 0.15f;
+    [Tooltip("前冲在攻击触发后延迟多久开始（秒），对齐挥刀发力帧")]
+    [SerializeField] private float lungeDelay = 0.12f;
+    [Tooltip("前冲持续时间（秒），极短 = 瞬移手感")]
+    [SerializeField] private float lungeDuration = 0.04f;
+    [Tooltip("2D 攻击的前冲距离（米）")]
+    [SerializeField] private float lunge2DDistance = 0.4f;
+    [Tooltip("3D 每段连招的前冲距离（米），依次对应第 1、2、3 下")]
+    [SerializeField] private float[] lunge3DDistances = new float[] { 0.4f, 0.2f, 0.9f };
 
     [Header("Weapon Visual")]
     public WeaponSwingVisual weaponSwingVisual;
@@ -94,6 +117,10 @@ public class PlayerController : MonoBehaviour
     private int enemyLayerMask;
     private bool jumpInputHeld;
     private float attackFacingEndTime;
+    private float lungeStartTime = -10f;
+    private float lungeEndTime = -10f;
+    private Vector3 lungeVelocity;
+    private float attackSlowUntil = -10f;
     private bool isPlunging;
 
     public bool IsPlunging => isPlunging;
@@ -104,8 +131,9 @@ public class PlayerController : MonoBehaviour
         modeSwitcher = GetComponent<ModeSwitcher>(); 
         ghostTrail = GetComponentInChildren<GhostTrail>(); 
         
-        // 关键改动：获取子物体 Y Bot 上的动画组件
         animator = GetComponentInChildren<Animator>();
+        if (animator != null)
+            animator.applyRootMotion = false;
 
         nextMeleeAttackTime = -Mathf.Infinity;
         next3DMeleeAttackTime = -Mathf.Infinity;
@@ -184,30 +212,54 @@ public class PlayerController : MonoBehaviour
                 {
                     attackFacingEndTime = Time.time + meleeCooldown * 0.5f;
                     nextMeleeAttackTime = Time.time + meleeCooldown;
+                    attackSlowUntil = Time.time + meleeCooldown * 0.5f;
                     if (weaponSwingVisual != null) weaponSwingVisual.PlaySwing();
-                    
-                    // 同步动画信号
                     if (animator != null) animator.SetTrigger("Attack2D");
-                    
+                    ApplyLunge(lunge2DDistance);
                     PerformMeleeAttack();
                 }
             }
             else
             {
-                if (!levelCompleteUi && !cursorRecapturedThisFrame && !pointerOverUi && Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+                bool wantsAttack = !levelCompleteUi && !cursorRecapturedThisFrame && !pointerOverUi &&
+                                   Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
+
+                bool ready = Time.time >= comboStepLockedUntil;
+
+                if (ready && animator != null && currentComboStep > 0)
                 {
-                    if (Time.time >= next3DMeleeAttackTime)
+                    AnimatorStateInfo state = animator.GetCurrentAnimatorStateInfo(0);
+                    if (!state.loop && state.normalizedTime < 0.85f)
+                        ready = false;
+                }
+
+                if (wantsAttack && !ready)
+                    hasBufferedAttack = true;
+
+                if (Time.time - lastAttackTime > comboWindow && ready)
+                {
+                    currentComboStep = 0;
+                    hasBufferedAttack = false;
+                }
+
+                bool fireNow = ready && (wantsAttack || hasBufferedAttack);
+
+                if (fireNow)
+                {
+                    hasBufferedAttack = false;
+                    currentComboStep = (currentComboStep % 3) + 1;
+                    lastAttackTime = Time.time;
+                    comboStepLockedUntil = Time.time + comboStepMinDuration;
+                    attack3DFacingLockedUntil = Time.time + comboStepMinDuration;
+
+                    if (animator != null)
                     {
-                        next3DMeleeAttackTime = Time.time + melee3DCooldown;
-                        if (weaponSwingVisual != null) weaponSwingVisual.Play3DChop();
-                        
-                        // 同步动画信号
-                        if (animator != null) animator.SetTrigger("Attack3D");
-                        
-                        Perform3DMeleeAttack();
+                        animator.SetInteger("ComboStep", currentComboStep);
+                        animator.SetTrigger("Attack3D");
                     }
-                    if (enablePlungeStateExecute && !isGrounded && rb.linearVelocity.y < plungeArmMinFallSpeed)
-                        isPlunging = true;
+
+                    float dist = lunge3DDistances[Mathf.Clamp(currentComboStep - 1, 0, lunge3DDistances.Length - 1)];
+                    ApplyLunge(dist);
                 }
             }
         }
@@ -247,9 +299,30 @@ public class PlayerController : MonoBehaviour
         if (rb != null && rb.isKinematic) return;
         if (isDashing) return; 
 
+        // 前冲阶段：延迟后瞬移
+        if (Time.time >= lungeStartTime && Time.time < lungeEndTime)
+        {
+            if (modeSwitcher.is2DMode)
+                rb.linearVelocity = lungeVelocity;
+            else
+                rb.linearVelocity = new Vector3(lungeVelocity.x, rb.linearVelocity.y, lungeVelocity.z);
+            if (animator != null) animator.SetFloat("Speed", 0f);
+            return;
+        }
+
+        // 攻击减速判定：用明确的时间窗口，避免把跳跃等非循环动画误判为攻击
+        bool isAttacking = Time.time < attackSlowUntil;
+        if (!isAttacking && currentComboStep > 0 && animator != null)
+        {
+            AnimatorStateInfo state = animator.GetCurrentAnimatorStateInfo(0);
+            isAttacking = !state.loop && state.normalizedTime < 0.9f;
+        }
+
+        float currentSpeed = isAttacking ? moveSpeed * attackMoveSpeedMultiplier : moveSpeed;
+
         if (modeSwitcher.is2DMode) 
         {
-            Vector3 targetVelocity = movementInput * moveSpeed;
+            Vector3 targetVelocity = movementInput * currentSpeed;
             rb.linearVelocity = new Vector3(targetVelocity.x, 0f, targetVelocity.z);
         }
         else
@@ -261,14 +334,11 @@ public class PlayerController : MonoBehaviour
             camForward.Normalize(); camRight.Normalize();
 
             Vector3 moveDir = camForward * movementInput.z + camRight * movementInput.x;
-            rb.linearVelocity = new Vector3(moveDir.x * moveSpeed, rb.linearVelocity.y, moveDir.z * moveSpeed);
+            rb.linearVelocity = new Vector3(moveDir.x * currentSpeed, rb.linearVelocity.y, moveDir.z * currentSpeed);
         }
 
-        // 同步移动速度给动画机
         if (animator != null)
-        {
-            animator.SetFloat("Speed", movementInput.magnitude);
-        }
+            animator.SetFloat("Speed", isAttacking ? 0f : movementInput.magnitude);
     }
 
     private void TryJump3D()
@@ -330,11 +400,20 @@ public class PlayerController : MonoBehaviour
 
     private void Handle3DCameraFacing()
     {
-        // 1. 如果玩家没有按方向键，就不改变身体朝向（让他停下来时保持帅气的姿势）
+        if (Time.time < attack3DFacingLockedUntil)
+            return;
+
+        // 攻击动画仍在播放时继续锁定转向
+        if (currentComboStep > 0 && animator != null)
+        {
+            AnimatorStateInfo state = animator.GetCurrentAnimatorStateInfo(0);
+            if (!state.loop && state.normalizedTime < 0.9f)
+                return;
+        }
+
         if (movementInput.sqrMagnitude < 0.01f) 
             return;
 
-        // 2. 确保拿到了 3D 摄像机
         if (vcam3DTransform == null) 
             return;
 
@@ -386,6 +465,32 @@ public class PlayerController : MonoBehaviour
         return transform.forward;
     }
 
+    private Vector3 GetLungeDirection()
+    {
+        if (movementInput.sqrMagnitude > 0.01f)
+        {
+            if (modeSwitcher.is2DMode)
+                return movementInput.normalized;
+            if (vcam3DTransform != null)
+            {
+                Vector3 camForward = vcam3DTransform.forward;
+                Vector3 camRight = vcam3DTransform.right;
+                camForward.y = 0; camRight.y = 0;
+                camForward.Normalize(); camRight.Normalize();
+                return (camForward * movementInput.z + camRight * movementInput.x).normalized;
+            }
+        }
+        return transform.forward;
+    }
+
+    private void ApplyLunge(float distance)
+    {
+        Vector3 dir = GetLungeDirection();
+        lungeVelocity = dir * (distance / Mathf.Max(lungeDuration, 0.01f));
+        lungeStartTime = Time.time + lungeDelay;
+        lungeEndTime = lungeStartTime + lungeDuration;
+    }
+
     private Vector3 GetAttackBasePosition() { return transform.position + Vector3.up * attackHeightOffset; }
 
     private void PerformMeleeAttack()
@@ -413,7 +518,7 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    private void Perform3DMeleeAttack()
+    public void Perform3DMeleeAttack()
     {
         if (enemyLayerMask == 0) return;
         Vector3 basePosition = GetAttackBasePosition();

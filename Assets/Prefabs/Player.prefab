@@ -26,13 +26,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6533659419058706717}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.5, y: -0.5, z: 0.5, w: 0.5}
-  m_LocalPosition: {x: -1, y: 0, z: 0}
-  m_LocalScale: {x: 0.1, y: 0.1, z: 2}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: -0.6}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 1.6}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 936467268247730590}
-  m_LocalEulerAnglesHint: {x: 0, y: -90, z: 90}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &1615936566641405855
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -225,6 +225,8 @@ MonoBehaviour:
   melee3DDamage: 20
   melee3DCooldown: 0.75
   melee3DKnockbackForce: 18
+  comboStepMinDuration: 0.65
+  comboWindow: 1.2
   executionZoneTag: ExecutionZone
   enablePlungeStateExecute: 1
   plungeSnapDuration: 0.1
@@ -232,7 +234,15 @@ MonoBehaviour:
   plungeExecuteMinFallSpeed: -1
   minPlungeSpeed: -3
   weakPointPlungeFailScratchDamage: 0
-  weaponSwingVisual: {fileID: 3142498739418555007}
+  attackMoveSpeedMultiplier: 0.15
+  lungeDelay: 0.12
+  lungeDuration: 0.04
+  lunge2DDistance: 0.4
+  lunge3DDistances:
+  - 0.4
+  - 0.2
+  - 0.9
+  weaponSwingVisual: {fileID: 0}
 --- !u!114 &2556937469003392086
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -378,7 +388,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 936467268247730590}
-  - component: {fileID: 3142498739418555007}
   m_Layer: 0
   m_Name: Weaponpivot
   m_TagString: Untagged
@@ -394,37 +403,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7215783731923524804}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalRotation: {x: 0, y: 0.7071068, z: 0, w: 0.7071068}
+  m_LocalPosition: {x: 0, y: 0.1, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 4330898924437985350}
   m_Father: {fileID: 3342050657375536937}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &3142498739418555007
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7215783731923524804}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c1a2b3d4e5f6478899aabbccddeeff10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::WeaponSwingVisual
-  baseAimOffsetEuler: {x: 0, y: 0, z: 0}
-  restEuler: {x: 0, y: 0, z: 0}
-  halfConeAngleDegrees: 60
-  windupTime: 0.05
-  slashTime: 0.12
-  returnTime: 0.1
-  chop3DPitchStartDegrees: -60
-  chop3DPitchEndDegrees: 60
-  chop3DDuration: 0.15
-  chop3DHideDuration: 0.08
-  hideRenderers: []
+  m_LocalEulerAnglesHint: {x: 0, y: 90, z: 0}
 --- !u!1001 &4023110399918422241
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -487,7 +473,10 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 1852576806548013000, guid: af197348a1b864c3383ca6c73d5f1be1, type: 3}
       insertIndex: -1
       addedObject: {fileID: 936467268247730590}
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: af197348a1b864c3383ca6c73d5f1be1, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1348356693472079309}
   m_SourcePrefab: {fileID: 100100000, guid: af197348a1b864c3383ca6c73d5f1be1, type: 3}
 --- !u!4 &3342050657375536937 stripped
 Transform:
@@ -499,3 +488,20 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: af197348a1b864c3383ca6c73d5f1be1, type: 3}
   m_PrefabInstance: {fileID: 4023110399918422241}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &4257480847266678192 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: af197348a1b864c3383ca6c73d5f1be1, type: 3}
+  m_PrefabInstance: {fileID: 4023110399918422241}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1348356693472079309
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4257480847266678192}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef384ef03755c4bc094fa99eff28af17, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AnimationEventForwarder
