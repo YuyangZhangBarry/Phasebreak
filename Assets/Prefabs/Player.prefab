@@ -327,6 +327,7 @@ MonoBehaviour:
   mainCameraTransform: {fileID: 0}
   visual2D: {fileID: 1896249431565472416}
   visual3D: {fileID: 4257480847266678192}
+  spriteRenderer2D: {fileID: 0}
   rotation3DAlignDegreesPerSecond: 540
   facing2DDegreesPerSecond: 720
   confineCursorIn2D: 1
@@ -340,6 +341,7 @@ MonoBehaviour:
   melee3DBoxDistance: 1.5
   melee3DBoxCenterYOffset: 0.5
   melee3DDamage: 20
+  melee3DEnhancedDamage: 60
   melee3DCooldown: 0.75
   melee3DKnockbackForce: 18
   comboStepMinDuration: 0.65
@@ -359,6 +361,13 @@ MonoBehaviour:
   - 0.4
   - 0.2
   - 0.9
+  lungeSpeedAnimatorParam: LungeSpeed
+  parryWindowDuration: 0.2
+  perfectStrikeBulletTimeScale: 0.1
+  perfectStrikeRestoreNormalizedTime: 0.1
+  perfectStrikeIntroDelayRealtime: 0
+  perfectStrikeMaxRealtimeWait: 45
+  enhancedAttackTriggerParam: EnhancedAttack
   weaponSwingVisual: {fileID: 0}
 --- !u!114 &2556937469003392086
 MonoBehaviour:
@@ -473,9 +482,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DimensionShiftDirector
   graphicsRoot: {fileID: 0}
-  playerHealth: {fileID: 1667753745264432470}
-  grantIFramesOnSwitch: 1
-  iFrameDuration: 0.2
   minTransitionLockDuration: 1.2
   freezeDurationTo3D: 0.04
   rampDurationTo3D: 0.12

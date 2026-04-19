@@ -60,9 +60,12 @@ public class ModeSwitcher : MonoBehaviour
 
     private Rigidbody rb;
 
+    private PlayerController playerController;
+
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
+        playerController = GetComponent<PlayerController>();
 
         is2DMode = true;
         CurrentMode = GameMode.Mode2D;
@@ -89,6 +92,7 @@ public class ModeSwitcher : MonoBehaviour
             if (is2DMode && !isDimensionSwitchUnlocked)
                 return;
 
+            playerController?.BeginParryWindowFromDimensionSwitch();
             ToggleDimension();
         }
     }
@@ -111,7 +115,8 @@ public class ModeSwitcher : MonoBehaviour
             rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
     }
 
-    private void ToggleDimension()
+    /// <summary>切换 2D/3D 维度并触发 <see cref="OnDimensionChanged"/>。</summary>
+    public void ToggleDimension()
     {
         is2DMode = !is2DMode;
 

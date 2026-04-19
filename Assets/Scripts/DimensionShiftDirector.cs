@@ -7,7 +7,8 @@ using Unity.Cinemachine;
 
 /// <summary>
 /// 维度切换的视觉编排器。订阅 <see cref="ModeSwitcher.OnDimensionChanged"/>，
-/// 统一驱动 Hitstop、后处理脉冲、Cinemachine Impulse、模型形变、粒子爆发、屏幕闪白、无敌帧。
+/// 统一驱动 Hitstop、后处理脉冲、Cinemachine Impulse、模型形变、粒子爆发、屏幕闪白。
+/// 受伤免疫仅由 <see cref="PlayerController"/> 完美闪避等战斗逻辑处理，本类不授予切维无敌帧。
 /// 挂在与 ModeSwitcher 相同的 GameObject 上。
 /// 所有需要的子系统（Volume、Canvas、ImpulseSource）会在运行时自动创建，无需手动配置。
 /// </summary>
@@ -17,14 +18,6 @@ public class DimensionShiftDirector : MonoBehaviour
     [Header("模型形变")]
     [Tooltip("包含模型/贴图的子物体。只对该物体做缩放形变，避免破坏根节点碰撞盒。若留空则使用自身 transform。")]
     public Transform graphicsRoot;
-
-    [Header("无敌帧")]
-    [Tooltip("玩家的 Health 组件。若留空则自动搜索。")]
-    public Health playerHealth;
-    [Tooltip("切换时是否授予短暂无敌帧。")]
-    public bool grantIFramesOnSwitch = true;
-    [Tooltip("无敌帧持续时间（游戏秒）。")]
-    public float iFrameDuration = 0.2f;
 
     [Header("过渡锁定")]
     [Tooltip("切换后 F 键被屏蔽的最短真实时间（秒）。应覆盖 Cinemachine 相机混合的完整时长。")]
@@ -90,9 +83,6 @@ public class DimensionShiftDirector : MonoBehaviour
     {
         modeSwitcher = GetComponent<ModeSwitcher>();
 
-        if (playerHealth == null)
-            playerHealth = GetComponent<Health>();
-
         EnsureTransitionVolume();
         EnsureImpulseSource();
         EnsureScreenFlash();
@@ -118,8 +108,11 @@ public class DimensionShiftDirector : MonoBehaviour
             transitionCoroutine = null;
         }
 
-        Time.timeScale = 1f;
-        Time.fixedDeltaTime = 0.02f;
+        if (!DimensionTimeScaleCoordinator.PerfectParryStrikeOwnsGlobalTimeScale)
+        {
+            Time.timeScale = 1f;
+            Time.fixedDeltaTime = 0.02f;
+        }
 
         if (transitionVolume != null)
             transitionVolume.weight = 0f;
@@ -145,9 +138,8 @@ public class DimensionShiftDirector : MonoBehaviour
 
         // === 第 0 帧：所有层级瞬间启动 ===
 
-        // Hitstop 冻结
-        Time.timeScale = 0f;
-        Time.fixedDeltaTime = 0.001f;
+        // Hitstop 冻结（若完美反击正在控时间，仅跳过缩放写入）
+        ApplyDirectorTimeScale(0f, 0.001f);
 
         // 后处理峰值
         if (transitionVolume != null)
@@ -173,10 +165,6 @@ public class DimensionShiftDirector : MonoBehaviour
         // 粒子爆发
         SpawnDimensionBurst(enteredIs2D);
 
-        // 无敌帧
-        if (grantIFramesOnSwitch && playerHealth != null)
-            playerHealth.SetInvincibleUntil(Time.time + iFrameDuration);
-
         // === 冻结阶段 ===
         float freezeElapsed = 0f;
         while (freezeElapsed < freezeDuration)
@@ -196,8 +184,8 @@ public class DimensionShiftDirector : MonoBehaviour
             float t = Mathf.Clamp01(rampElapsed / rampDuration);
             float easeT = 1f - Mathf.Pow(1f - t, 3f);
 
-            Time.timeScale = Mathf.Lerp(0f, 1f, easeT);
-            Time.fixedDeltaTime = 0.02f * Mathf.Max(0.01f, Time.timeScale);
+            float ts = Mathf.Lerp(0f, 1f, easeT);
+            ApplyDirectorTimeScale(ts, 0.02f * Mathf.Max(0.01f, ts));
 
             if (transitionVolume != null)
                 transitionVolume.weight = 1f - easeT;
@@ -217,8 +205,7 @@ public class DimensionShiftDirector : MonoBehaviour
         }
 
         // === 视觉清理（果汁结束，但锁定可能仍在） ===
-        Time.timeScale = 1f;
-        Time.fixedDeltaTime = 0.02f;
+        RestoreDirectorDefaultsIfAllowed();
 
         if (transitionVolume != null)
             transitionVolume.weight = 0f;
@@ -240,6 +227,22 @@ public class DimensionShiftDirector : MonoBehaviour
 
         if (modeSwitcher != null)
             modeSwitcher.NotifyShiftComplete();
+    }
+
+    private static void ApplyDirectorTimeScale(float timeScale, float fixedDeltaTime)
+    {
+        if (DimensionTimeScaleCoordinator.PerfectParryStrikeOwnsGlobalTimeScale)
+            return;
+        Time.timeScale = timeScale;
+        Time.fixedDeltaTime = fixedDeltaTime;
+    }
+
+    private static void RestoreDirectorDefaultsIfAllowed()
+    {
+        if (DimensionTimeScaleCoordinator.PerfectParryStrikeOwnsGlobalTimeScale)
+            return;
+        Time.timeScale = 1f;
+        Time.fixedDeltaTime = 0.02f;
     }
 
     private void FadeScreenFlash(Color baseColor, float elapsed, float totalDuration)

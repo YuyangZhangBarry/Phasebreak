@@ -25,6 +25,12 @@ public class Health : MonoBehaviour, IDamageable
 
     private float invincibleUntil;
 
+    /// <summary>
+    /// 可选：若返回 true，则本次伤害完全被吸收（不扣血、不进入 I-frame、不触发 OnTookDamage）。
+    /// 用于玩家完美闪避等需在 <see cref="TakeDamage"/> 最前面处理的逻辑。
+    /// </summary>
+    public Func<float, bool> CustomTryAbsorbDamage;
+
     public float MaxHealth => maxHealth;
     public float CurrentHealth => currentHealth;
     public bool IsAlive => currentHealth > 0f;
@@ -71,6 +77,9 @@ public class Health : MonoBehaviour, IDamageable
     public void TakeDamage(float damageAmount, bool ignoreInvincibility = false)
     {
         if (!IsAlive || damageAmount <= 0f)
+            return;
+
+        if (!ignoreInvincibility && CustomTryAbsorbDamage != null && CustomTryAbsorbDamage.Invoke(damageAmount))
             return;
 
         if (!ignoreInvincibility && IsInvulnerable)
